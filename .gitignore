@@ -1,0 +1,11 @@
+# Dependencies 
+node_modules/ 
+ 
+# Generated output 
+figma-to-react-generated/ 
+ 
+# Environment files 
+.env 
+ 
+dist/ 
+build/ 
