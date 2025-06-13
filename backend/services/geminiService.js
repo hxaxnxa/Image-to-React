@@ -8,14 +8,15 @@ class GeminiService {
 
   async generateUIDescription(imageBuffer) {
     try {
-      const prompt = `Analyze this UI/design image and provide a detailed description of:
-      1. Layout structure (header, main content, sidebar, footer)
-      2. Components present (buttons, forms, cards, navigation)
-      3. Color scheme and styling (provide HEX codes where possible)
-      4. Typography and text elements (font styles, sizes)
-      5. Interactive elements and their purposes
-      
-      Be specific and detailed for React component generation.`;
+      const prompt = `Analyze this uploaded UI design image and provide a detailed description of:
+1. Layout structure (header, main content, sidebars, footer)
+2. UI components (buttons, forms, cards, navigation, icons)
+3. Color scheme and styling (include HEX codes where possible)
+4. Typography (font styles, sizes, and hierarchy)
+5. Spacing, padding, and alignment
+6. Interactive elements and their intended behavior
+
+Provide a comprehensive breakdown that can be used to recreate the design using React and Material-UI components. Be precise and developer-friendly.`;
 
       const imagePart = {
         inlineData: {
@@ -33,29 +34,36 @@ class GeminiService {
 
   async generateReactCode(uiDescription, userPrompt, deviceType = 'desktop') {
     try {
-      const prompt = `Generate a complete React component named 'GeneratedComponent' using Material-UI (@mui/material) based on:
+      const prompt = `Based on the following UI description and user requirements, generate a complete React component using Material-UI (@mui/material) components.
 
-      UI Description: ${uiDescription}
-      User Prompt: ${userPrompt}
-      Device Type: ${deviceType}
+UI Description:
+${uiDescription}
 
-      Requirements:
-      1. Name the main component 'GeneratedComponent' and export it as default.
-      2. Use Material-UI components exclusively (@mui/material, @mui/icons-material).
-      3. Make it responsive using useEffect to detect mobile view (window.innerWidth <= 768) and adjust padding, spacing, and sizes accordingly.
-      4. Include proper styling with sx prop or styled components.
-      5. Implement interactivity (e.g., buttons, navigation) using React hooks (useState, useEffect).
-      6. For dark mode, use Material-UI's ThemeProvider with a theme object toggled by useState. Always use an IconButton with Brightness4/Brightness7 icons, positioned fixed at bottom-right or in the header.
-      7. Use placeholder images (e.g., https://via.placeholder.com) for any images, do not use local paths.
-      8. Ensure the component is self-contained and renders correctly in a live preview environment like react-live, which provides dependencies via a scope object.
-      9. Include proper import statements for publishing to a React project.
-      10. Avoid manipulating document.body directly; use Material-UI theme for styling.
-      11. Strip any markdown formatting (e.g., \`\`\`jsx) from the output, returning only the JavaScript code.
-      12. Do not define additional components outside 'GeneratedComponent'; inline all sub-components within it.
-      13. Use 'import { useState, useEffect } from "react"' for hooks.
-      14. When using Material-UI icons, do not append 'Icon' to the import name (e.g., use 'KeyboardArrowLeft' instead of 'KeyboardArrowLeftIcon').
+User Requirements:
+${userPrompt || 'Create a beautiful, functional component based on the UI description.'}
 
-      Return only the React component code, no explanations or markdown.`;
+Device Type: ${deviceType}
+
+Requirements:
+1. The component name must be "GeneratedComponent" and exported as default.
+2. Use only Material-UI components (@mui/material and @mui/icons-material).
+3. Avoid import aliasing like \`Container as MuiContainer\`. Use unique styled component names instead (e.g., \`const StyledContainer = styled(Container)(...)\`).
+4. Do not redeclare or shadow imported component names like \`Container\`, \`Box\`, etc.
+5. Make the layout responsive (${deviceType === 'mobile' ? 'mobile-first with 375px viewport' : 'desktop with 1200px maxWidth'}).
+6. Use Material-UI’s ThemeProvider for dark mode toggle using an IconButton (Brightness4 / Brightness7) with useState.
+7. Add placeholder images from https://via.placeholder.com if images are referenced.
+8. Include error boundaries and loading states using simple conditional rendering.
+9. Inline all subcomponents inside \`GeneratedComponent\`; no separate components.
+10. Use React hooks (\`useState\`, \`useEffect\`) properly.
+11. Ensure accessibility with ARIA labels on interactive elements.
+12. Do not wrap output in markdown (e.g., \`\`\`jsx) — return plain JavaScript code only.
+13. Ensure compatibility with react-live or online editors by avoiding custom imports or document usage.
+14. Include smooth hover effects and transitions.
+15. Use proper Material-UI theming and styling with \`sx\` or \`styled\`.
+
+Generate clean, production-ready, error-free code that works in live preview environments.`;
+
+
 
       const result = await this.model.generateContent(prompt);
       let code = result.response.text();
