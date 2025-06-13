@@ -86,7 +86,7 @@ function App() {
       <CssBaseline />
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Typography variant="h3" component="h1" gutterBottom align="center">
-          Figma to React
+          Image to React
         </Typography>
         
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3, mt: 4 }}>
