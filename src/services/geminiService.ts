@@ -89,24 +89,31 @@ ${userPrompt || 'Create a beautiful, functional component based on the UI descri
 
 Device Type: ${deviceType}
 
-Requirements:
-1. The component name must be "GeneratedComponent" and exported as default.
-2. Use only Material-UI components (@mui/material and @mui/icons-material) like Box, Typography, Button, Card, CardContent, CardMedia, IconButton, Grid, TextField, CircularProgress.
-3. Do not use styled-components or styled() functions. Use Material-UI's sx prop for styling.
-4. Do not include import statements in the generated code.
-5. Make the layout responsive (${deviceType === 'mobile' ? 'mobile-first with 375px viewport' : 'desktop with 1200px maxWidth'}).
-6. Implement dark mode toggle using an IconButton (Brightness4 / Brightness7) with React.useState.
-7. Use placeholder images from https://via.placeholder.com (e.g., https://via.placeholder.com/200x100).
-8. Include error boundaries and loading states using simple conditional rendering.
-9. Inline all subcomponents inside GeneratedComponent; no separate components.
-10. Use React hooks (React.useState, React.useEffect) properly, referencing them with React prefix (e.g., React.useState).
-11. Ensure accessibility with ARIA labels on interactive elements.
-12. Do not wrap output in markdown (e.g., \`\`\`jsx) — return plain JavaScript code only.
-13. Ensure compatibility with react-live by avoiding custom imports.
-14. Include smooth hover effects and transitions using sx prop with &:hover syntax.
-15. Use proper Material-UI styling with sx prop.
+CRITICAL REQUIREMENTS:
+1. The main component name MUST be "GeneratedComponent" and it MUST be exported as default ONLY ONCE at the very end (e.g., "export default GeneratedComponent;").
+2. Include ALL necessary React and Material-UI imports at the very top of the file, matching this format:
+   \`\`\`javascript
+   import React, { useState, useEffect, useRef } from 'react';
+   import { Box, Typography, TextField, Grid, Card, CardContent, IconButton, CircularProgress, Button, BottomNavigation, BottomNavigationAction } from '@mui/material';
+   import { Brightness4, Brightness7, Home as HomeIcon, Receipt as ReceiptIcon, AccountBalanceWallet as AccountBalanceWalletIcon, Mail as MailIcon } from '@mui/icons-material';
+   \`\`\`
+3. Use only Material-UI components (@mui/material and @mui/icons-material) like Box, Typography, Button, Card, CardContent, IconButton, Grid, TextField, CircularProgress, BottomNavigation, BottomNavigationAction.
+4. Do NOT use styled-components or styled() functions. Use Material-UI's \`sx\` prop for all styling.
+5. Make the layout fully responsive using Material-UI's responsive props (e.g., \`{ xs: 'column', sm: 'row' }\`) and \`sx\` prop, for both mobile (e.g., 375px width breakpoint) and desktop views.
+6. Implement dark mode toggle functionality using an IconButton (Brightness4 / Brightness7) with \`React.useState\`.
+7. Use placeholder images from \`https://placehold.co\` (e.g., \`https://placehold.co/300x200/4CAF50/FFFFFF?text=Image\`).
+8. Include basic loading and error states using conditional rendering with \`React.useState\` and \`CircularProgress\`.
+9. Inline all subcomponents directly within the main "GeneratedComponent" component; do not declare separate components.
+10. Use React hooks (\`React.useState\`, \`React.useEffect\`) properly, always referencing them with the \`React.\` prefix (e.g., \`React.useState\`).
+11. Ensure accessibility with \`aria-label\` on interactive elements.
+12. Include smooth hover effects and transitions using the \`sx\` prop with \`&:hover\` syntax.
+13. Return the complete, runnable JavaScript/JSX code for the React component, ready for live preview.
+14. The component structure should be professional and production-ready.
+15. IMPORTANT: Include ONLY ONE "export default GeneratedComponent;" statement at the very end of the file.
 
-Generate clean, production-ready, error-free code that works in live preview environments.`;
+IMPORTANT: The component must be named "GeneratedComponent" exactly, not "App" or any other name.
+
+Generate clean, production-ready, error-free code that works perfectly in live preview environments like CodeSandbox Sandpack.`;
   }
 
   private getReactNativePrompt(uiDescription: string, userPrompt: string, deviceType: string): string {
@@ -183,82 +190,99 @@ Generate clean, production-ready Flutter/Dart code.`;
   }
 
   private preprocessCodeForReactLive(code: string): string {
-    // Remove markdown code blocks
-    code = code.replace(/```jsx?\s*/g, '').replace(/```javascript\s*/g, '').replace(/```\s*/g, '');
+    // Remove markdown code blocks if present
+    code = code.replace(/```(?:jsx?|javascript|tsx?|typescript)?\s*/g, '').replace(/```\s*/g, '');
     
-    // Remove import/export statements
-    code = code.replace(/import\s+.*?from\s+['"][^'"]*['"];?\s*/g, '');
-    code = code.replace(/export\s+default\s+/g, '');
-    code = code.replace(/export\s*\{[^}]*\};?\s*/g, '');
-    
-    // Remove unsupported MUI utilities
-    code = code.replace(/ThemeProvider|CssBaseline|useTheme/g, '');
-    
-    // Replace useState with React.useState
-    code = code.replace(/\buseState\b/g, 'React.useState');
-    code = code.replace(/\buseEffect\b/g, 'React.useEffect');
-    code = code.replace(/\buseCallback\b/g, 'React.useCallback');
-    code = code.replace(/\buseMemo\b/g, 'React.useMemo');
-    code = code.replace(/\buseRef\b/g, 'React.useRef');
-    
-    // Fix double React prefix
+    // Fix double React prefix (e.g., React.React.useState -> React.useState)
     code = code.replace(/React\.React\./g, 'React.');
     
-    // Normalize icon names
-    code = code.replace(/(\w+)Icon(?=\s*[,}\s])/g, '$1');
-    
-    // Remove styled components and convert to sx props
-    code = code.replace(/const\s+StyledBox\s*=\s*styled\(Box\)\(({[\s\S]*?})\);?\s*/g, '');
-    code = code.replace(/\bStyledBox\b/g, 'Box');
-    
-    // Ensure proper component structure
-    if (!code.includes('const GeneratedComponent') && !code.includes('function GeneratedComponent')) {
-      code = `const GeneratedComponent = () => {\n  return (\n    ${code}\n  );\n};`;
+    // Ensure the component is named 'GeneratedComponent' if the LLM deviated
+    code = code.replace(/(function|const)\s+(App)\s*=/g, 'const GeneratedComponent =');
+    code = code.replace(/function\s+App/g, 'function GeneratedComponent');
+    code = code.replace(/export default App/g, 'export default GeneratedComponent');
+
+    // Ensure 'export default GeneratedComponent;' is at the end if not present
+    if (!code.includes('export default GeneratedComponent')) {
+      // For function declarations
+      if (code.includes('function GeneratedComponent')) {
+        if (!code.endsWith('export default GeneratedComponent;')) {
+          code = code + '\n\nexport default GeneratedComponent;';
+        }
+      }
+      // For const declarations
+      else if (code.includes('const GeneratedComponent =')) {
+        if (!code.endsWith('export default GeneratedComponent;')) {
+          code = code + '\n\nexport default GeneratedComponent;';
+        }
+      }
+      // Fallback - create a basic component if none exists
+      else {
+        code = `import React from 'react';
+import { Box, Typography } from '@mui/material';
+
+const GeneratedComponent = () => {
+  return (
+    <Box sx={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+      <Typography variant="h6">Generated Content</Typography>
+      <Typography>The component code was generated successfully.</Typography>
+    </Box>
+  );
+};
+
+export default GeneratedComponent;`;
+      }
     }
 
-    // Clean up extra whitespace
-    code = code.replace(/\n\s*\n+/g, '\n').trim();
-
-    // Remove trailing component name
-    code = code.replace(/\bGeneratedComponent\s*;?\s*$/, '');
-
-    // Fallback for invalid code
-    if (!code.includes('return')) {
-      code = `const GeneratedComponent = () => {
-        return (
-          <Box sx={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-            <Typography variant="h6">Generated Component</Typography>
-            <Typography>There was an issue parsing the generated code.</Typography>
-            <pre style={{ background: '#f5f5f5', padding: '10px', borderRadius: '4px', fontSize: '12px' }}>
-              {${JSON.stringify(code.slice(0, 200))}}
-            </pre>
-          </Box>
-        );
-      };`;
-    }
+    // Clean up any extra whitespace
+    code = code.replace(/\n\s*\n+/g, '\n\n').trim();
 
     return code;
   }
 
   private preprocessReactNativeCode(code: string): string {
-    code = code.replace(/```jsx?\s*/g, '').replace(/```javascript\s*/g, '').replace(/```\s*/g, '');
+    // Remove markdown code blocks
+    code = code.replace(/```(?:jsx?|javascript|tsx?|typescript)?\s*/g, '').replace(/```\s*/g, '');
+    
+    // Add basic imports if missing
     if (!code.includes('import React')) {
-      code = `import React, { useState, useEffect } from 'react';\nimport { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, StatusBar } from 'react-native';\n\n${code}`;
+      code = `import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, StatusBar } from 'react-native';
+
+${code}`;
     }
+    
+    // Ensure export default
     if (!code.includes('export default')) {
-      code = code.replace(/^(function|const)\s+App/, 'export default $1 App');
+      if (code.includes('function App')) {
+        code = code.replace(/function App/, 'export default function App');
+      } else if (code.includes('const App =')) {
+        code = code + '\n\nexport default App;';
+      }
     }
+    
     return code.trim();
   }
 
   private preprocessFlutterCode(code: string): string {
-    code = code.replace(/```dart\s*/g, '').replace(/```\s*/g, '');
+    // Remove markdown code blocks
+    code = code.replace(/```(?:dart)?\s*/g, '').replace(/```\s*/g, '');
+    
+    // Add basic Flutter imports if missing
     if (!code.includes('import \'package:flutter/material.dart\'')) {
-      code = `import 'package:flutter/material.dart';\n\n${code}`;
+      code = `import 'package:flutter/material.dart';
+
+${code}`;
     }
+    
+    // Add main function if missing
     if (!code.includes('void main()')) {
-      code = `${code}\n\nvoid main() {\n  runApp(MyApp());\n}`;
+      code = `${code}
+
+void main() {
+  runApp(MyApp());
+}`;
     }
+    
     return code.trim();
   }
 

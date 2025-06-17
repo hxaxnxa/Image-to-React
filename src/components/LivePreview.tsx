@@ -88,66 +88,116 @@ const LivePreview: React.FC<LivePreviewProps> = ({
   };
 
   const prepareCodeForSandpack = (rawCode: string) => {
-    if (!rawCode) return 'export default function App() { return <div>No code provided</div>; }';
+    if (!rawCode) return 'export default function GeneratedComponent() { return <div>No code provided</div>; }';
 
     let cleanCode = rawCode.trim();
 
-    // Remove markdown code blocks
-    cleanCode = cleanCode.replace(/```(jsx?|javascript|tsx?|typescript)?\s*/g, '').replace(/```/g, '');
+    // Remove markdown code blocks if present
+    cleanCode = cleanCode.replace(/```(?:jsx?|javascript|tsx?|typescript)?\s*/g, '').replace(/```\s*/g, '');
 
-    // Remove import statements that we'll handle in dependencies
-    cleanCode = cleanCode.replace(/import\s+[\s\S]*?from\s+['"]@mui\/[^'"]*['"];?\s*/g, '');
-    cleanCode = cleanCode.replace(/import\s+[\s\S]*?from\s+['"]react['"];?\s*/g, '');
-    cleanCode = cleanCode.replace(/import\s+[\s\S]*?from\s+['"]react-dom['"];?\s*/g, '');
-    cleanCode = cleanCode.replace(/import\s+[\s\S]*?from\s+['"]@emotion\/[^'"]*['"];?\s*/g, '');
+    // Remove ALL existing export default statements first
+    cleanCode = cleanCode.replace(/^\s*export\s+default\s+\w+\s*;?\s*$/gm, '');
+    cleanCode = cleanCode.replace(/export\s+default\s+(?:function\s+)?(\w+)/g, 'function $1');
 
-    // Remove export default statements if LLM adds it prematurely
-    cleanCode = cleanCode.replace(/export\s+default\s+/g, '');
+    // Ensure the component is named 'GeneratedComponent' for consistency
+    cleanCode = cleanCode.replace(/(function|const)\s+(App)\s*\(/g, '$1 GeneratedComponent(');
+    cleanCode = cleanCode.replace(/(function|const)\s+(App)\s*=/g, '$1 GeneratedComponent =');
+    cleanCode = cleanCode.replace(/function\s+App\s*\(/g, 'function GeneratedComponent(');
 
-    // Replace LLM's common component name with 'App' for Sandpack's entry
-    cleanCode = cleanCode.replace(/(function|const)\s+(GeneratedComponent|App)\s*=/g, 'const App =');
-    cleanCode = cleanCode.replace(/function\s+GeneratedComponent/g, 'function App');
-
-    // Handle styled components - remove them as we'll use sx props or expect direct MUI usage
-    cleanCode = cleanCode.replace(/const\s+Styled\w+\s*=\s*styled\([^)]+\)\([^)]*\);?\s*/g, '');
-
-    // Replace React.useState with useState and other React hooks
+    // Replace React.useState with useState and other React hooks if needed
     cleanCode = cleanCode.replace(/React\.(useState|useEffect|useRef|useCallback|useMemo|useContext|useReducer)/g, '$1');
 
-    // Add necessary imports at the top
-    const imports = [
-      "import React, { useState, useEffect, useRef, useCallback, useMemo, useContext, useReducer } from 'react';",
-      "import { Box, Typography, Button, TextField, Grid, Card, CardContent, CircularProgress, IconButton, CardMedia } from '@mui/material';",
-      "import { Brightness4, Brightness7, Facebook, Instagram, Twitter } from '@mui/icons-material';"
-    ];
+    // Handle styled components - remove them as we expect sx props or direct MUI usage
+    cleanCode = cleanCode.replace(/const\s+Styled\w+\s*=\s*styled\([^)]+\)\([^)]*\);?\s*/g, '');
 
-    // Ensure proper component structure by wrapping if necessary
-    const appComponentDefined = cleanCode.includes('function App') || cleanCode.includes('const App =');
+    // Clean up any duplicate or malformed function declarations
+    const functionMatches = cleanCode.match(/(?:function\s+GeneratedComponent|const\s+GeneratedComponent\s*=)/g);
+    if (functionMatches && functionMatches.length > 1) {
+      // Keep only the first function declaration and remove duplicates
+      let firstFound = false;
+      cleanCode = cleanCode.replace(/(?:function\s+GeneratedComponent.*?(?=\n(?:function|const|export|$))|const\s+GeneratedComponent\s*=.*?(?=\n(?:function|const|export|$)))/gs, (match) => {
+        if (!firstFound) {
+          firstFound = true;
+          return match;
+        }
+        return '';
+      });
+    }
+
+    // Ensure proper component structure
+    const generatedComponentDefined = cleanCode.includes('function GeneratedComponent') || cleanCode.includes('const GeneratedComponent =');
 
     let finalCode = cleanCode;
 
-    if (!appComponentDefined) {
-      // If it's just JSX, wrap it in a function App
+    // If 'GeneratedComponent' component is not defined, provide a fallback structure
+    if (!generatedComponentDefined) {
+      // If it's just JSX, wrap it in a function GeneratedComponent
       if (cleanCode.trim().startsWith('<')) {
-        finalCode = `function App() {\n  return (\n    <Box sx={{ padding: 2 }}>\n      ${cleanCode}\n    </Box>\n  );\n}`;
+        finalCode = `import React from 'react';
+import { Box, Typography } from '@mui/material';
+
+function GeneratedComponent() {
+  return (
+    <Box sx={{ padding: 2 }}>
+      <Typography variant="h6">Generated Content</Typography>
+      <Typography>The generated code structure has been corrected.</Typography>
+      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.8em', background: '#f0f0f0', padding: '10px', borderRadius: '5px' }}>
+        {${JSON.stringify(cleanCode.substring(0, 500))}...}
+      </pre>
+    </Box>
+  );
+}
+
+export default GeneratedComponent;`;
       } else {
-        finalCode = `function App() {\n  ${cleanCode}\n}`;
+        // If it's not JSX and no GeneratedComponent component, create a basic one
+        finalCode = `import React from 'react';
+import { Box, Typography } from '@mui/material';
+
+function GeneratedComponent() {
+  return (
+    <Box sx={{ padding: 2 }}>
+      <Typography variant="h6">Generated Content</Typography>
+      <Typography>The generated code has been processed successfully.</Typography>
+    </Box>
+  );
+}
+
+export default GeneratedComponent;`;
+      }
+    } else {
+      // Add single export default at the end
+      finalCode = finalCode.trim();
+      if (!finalCode.includes('export default GeneratedComponent')) {
+        finalCode += '\n\nexport default GeneratedComponent;';
       }
     }
 
-    // Add imports and ensure export default
-    if (!finalCode.includes('export default App')) {
-      finalCode = finalCode.replace(/(function|const)\s+App/, 'export default $1 App');
+    // Final cleanup - remove any remaining duplicate exports
+    const exportLines = finalCode.match(/^\s*export\s+default\s+GeneratedComponent\s*;?\s*$/gm);
+    if (exportLines && exportLines.length > 1) {
+      // Remove all export default lines first
+      finalCode = finalCode.replace(/^\s*export\s+default\s+GeneratedComponent\s*;?\s*$/gm, '');
+      // Add single export at the end
+      finalCode = finalCode.trim() + '\n\nexport default GeneratedComponent;';
     }
 
-    return `${imports.join('\n')}\n\n${finalCode}`;
+    return finalCode;
   };
 
   const getSandpackFiles = (processedCode: string) => {
     return {
-      '/App.js': {
+      '/GeneratedComponent.js': {
         code: processedCode,
         active: true,
+      },
+      '/App.js': {
+        code: `import React from 'react';
+import GeneratedComponent from './GeneratedComponent';
+
+export default function App() {
+  return <GeneratedComponent />;
+}`,
       },
       '/index.js': {
         code: `import React from 'react';
@@ -179,6 +229,16 @@ root.render(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>React App Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
 </head>
 <body>
   <div id="root"></div>
@@ -411,105 +471,99 @@ root.render(
 
   const openInNewTab = () => {
     if (previewUrl) {
-      window.open(previewUrl, '_blank');
+      window.open(previewUrl, '_blank', 'noopener,noreferrer');
     }
+  };
+
+  const getDeviceIcon = (device: 'desktop' | 'mobile') => {
+    return device === 'desktop' ? <Monitor size={16} /> : <Smartphone size={16} />;
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-[95vw] h-[95vh] max-w-7xl flex flex-col shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-7xl h-full max-h-[95vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-4">
-            <Typography variant="h6" component="h2" className="font-semibold text-slate-800">
-              Live Preview
-              <span className="ml-2 text-sm text-gray-500 font-normal">
-                ({codeFormat === 'react-mui' && 'Sandpack'}
-                {codeFormat === 'react-native' && 'Expo Snack'}
-                {codeFormat === 'flutter' && 'DartPad'})
-              </span>
+            <Typography variant="h6" className="font-semibold text-gray-800">
+              Live Preview - {codeFormat === 'react-mui' ? 'React MUI' : codeFormat === 'react-native' ? 'React Native' : 'Flutter'}
             </Typography>
+            
+            {/* Device Toggle - Only show for React MUI */}
             {codeFormat === 'react-mui' && (
-              <div className="flex gap-2 p-1 bg-white rounded-md shadow-sm border border-gray-200">
-                <button
-                  onClick={() => setPreviewDevice('desktop')}
-                  className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
-                    previewDevice === 'desktop'
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                  title="Desktop View"
-                >
-                  <Monitor size={18} /> <span className="hidden sm:inline">Desktop</span>
-                </button>
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
                 <button
                   onClick={() => setPreviewDevice('mobile')}
-                  className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${
                     previewDevice === 'mobile'
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
                   }`}
-                  title="Mobile View"
                 >
-                  <Smartphone size={18} /> <span className="hidden sm:inline">Mobile</span>
+                  {getDeviceIcon('mobile')} Mobile
                 </button>
                 <button
-                  onClick={() => setShowConsole(!showConsole)}
-                  className={`p-2 rounded-md transition-colors flex items-center gap-1 ${
-                    showConsole
-                      ? 'bg-green-500 text-white shadow-md'
-                      : 'text-slate-600 hover:bg-slate-100'
+                  onClick={() => setPreviewDevice('desktop')}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${
+                    previewDevice === 'desktop'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-800'
                   }`}
-                  title="Toggle Console"
                 >
-                  <Code size={18} /> <span className="hidden sm:inline">Console</span>
+                  {getDeviceIcon('desktop')} Desktop
                 </button>
               </div>
             )}
           </div>
+
           <div className="flex items-center gap-2">
+            {/* Console Toggle - Only for React MUI */}
+            {codeFormat === 'react-mui' && (
+              <button
+                onClick={() => setShowConsole(!showConsole)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                  showConsole
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Code size={16} /> Console
+              </button>
+            )}
+
+            {/* Open in CodeSandbox - Only for React MUI */}
             {codeFormat === 'react-mui' && (
               <button
                 onClick={openInCodeSandbox}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Open in CodeSandbox"
+                className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center gap-1 text-sm font-medium"
               >
-                <ExternalLink size={20} />
+                <ExternalLink size={16} /> CodeSandbox
               </button>
             )}
-            {(codeFormat === 'flutter' || codeFormat === 'react-native') && previewUrl && !isLoading && (
+
+            {/* Open in New Tab - For external previews */}
+            {(codeFormat === 'react-native' || codeFormat === 'flutter') && previewUrl && (
               <button
                 onClick={openInNewTab}
-                className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                title="Open in new tab"
+                className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1 text-sm font-medium"
               >
-                <ExternalLink size={20} />
+                <ExternalLink size={16} /> Open in {codeFormat === 'flutter' ? 'DartPad' : 'Expo'}
               </button>
             )}
+
+            {/* Close Button */}
             <button
               onClick={onClose}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Close Preview"
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X size={20} />
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-4 bg-gray-100 flex justify-center items-center">
+
+        {/* Preview Content */}
+        <div className="flex-1 overflow-hidden">
           {codeFormat === 'react-mui' ? renderReactMUIPreview() : renderExternalPreview()}
-        </div>
-        <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center text-sm text-gray-500">
-          <Typography variant="body2" className="flex items-center">
-            {codeFormat === 'react-mui' && (
-              <>
-                <RefreshCw size={14} className="inline mr-2 text-blue-500" />
-                Auto-refresh on code changes
-              </>
-            )}
-          </Typography>
-          <Typography variant="body2" className="font-medium">
-            Powered by {codeFormat === 'react-mui' ? 'CodeSandbox Sandpack' :
-                        codeFormat === 'flutter' ? 'DartPad' : 'Expo Snack'}
-          </Typography>
         </div>
       </div>
     </div>
