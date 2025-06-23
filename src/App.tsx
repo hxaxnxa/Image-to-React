@@ -7,7 +7,7 @@ import CodeEditor from './components/CodeEditor';
 import LivePreview from './components/LivePreview';
 import ProgressBar from './components/ProgressBar';
 import NotificationSystem from './components/NotificationSystem';
-import { geminiService } from './services/geminiService';
+import { enhancedAzureOpenAIService } from './services/azureOpenAIService';
 
 interface ImageData {
   id: string;
@@ -94,7 +94,7 @@ function App() {
           img.id === image.id ? { ...img, isGenerating: true } : img
         ));
 
-        const description = await geminiService.generateUIDescription(image.file);
+        const description = await enhancedAzureOpenAIService.generateUIDescription(image.file);
         
         setImages(prev => prev.map(img => 
           img.id === image.id 
@@ -137,7 +137,7 @@ function App() {
         img.id === imageId ? { ...img, isGenerating: true } : img
       ));
 
-      const code = await geminiService.generateReactCode(
+      const code = await enhancedAzureOpenAIService.generateReactCode(
         image.description,
         userPrompt,
         deviceType,
@@ -175,7 +175,7 @@ function App() {
     for (let i = 0; i < validImages.length; i++) {
       const image = validImages[i];
       try {
-        const code = await geminiService.generateReactCode(
+        const code = await enhancedAzureOpenAIService.generateReactCode(
           image.description,
           userPrompt,
           deviceType,
