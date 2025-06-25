@@ -1,13 +1,15 @@
 import React from 'react';
 import { MessageSquare, Smartphone, Monitor, Code2 } from 'lucide-react';
 
-interface PromptBoxProps {
+export interface PromptBoxProps {
   prompt: string;
-  onChange: (prompt: string) => void;
+  onChange: (value: string) => void;
   deviceType: 'desktop' | 'mobile';
-  onDeviceTypeChange: (type: 'desktop' | 'mobile') => void;
+  onDeviceTypeChange: (type: 'desktop' | 'mobile' | 'react-native' | 'flutter') => void;
   codeFormat: 'react-mui' | 'react-native' | 'flutter';
   onCodeFormatChange: (format: 'react-mui' | 'react-native' | 'flutter') => void;
+  viewportWidth: number;
+  onViewportWidthChange: (width: number) => void;
 }
 
 const PromptBox: React.FC<PromptBoxProps> = ({
