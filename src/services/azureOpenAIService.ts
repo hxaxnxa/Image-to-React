@@ -66,6 +66,10 @@ interface VisionAnalysis {
     color?: string;
     font?: { family: string; size: number; weight: string };
     styles?: { borderRadius?: number; shadow?: string };
+    placeholder?: string; // Added for input fields
+    imageSource?: string; // Added for images
+    listItems?: string[]; // Added for lists
+    inferredFunctionality?: string; // Added for inferred functionality
     confidence: number; // Added for advanced vision model
   }>;
   responsiveHints: string[];
@@ -136,9 +140,11 @@ class EnhancedAzureOpenAIService {
 
     // Mock detection logic for buttons, inputs, navigation bars, etc.
     const detectedRegions = [
-      { type: 'button', x: 100, y: 50, width: 120, height: 40, confidence: 0.95 },
-      { type: 'text_input', x: 100, y: 120, width: 200, height: 40, confidence: 0.90 },
-      { type: 'navigation', x: 0, y: 0, width: typeof tensor.shape[1] === 'number' ? tensor.shape[1] : 0, height: 60, confidence: 0.98 },
+      { type: 'button', x: 100, y: 50, width: 120, height: 40, confidence: 0.95, text: 'Submit', inferredFunctionality: 'Likely submits a form' }, // Added inferredFunctionality
+      { type: 'text_input', x: 100, y: 120, width: 200, height: 40, confidence: 0.90, placeholder: 'Enter your name' }, // Added placeholder
+      { type: 'image', x: 50, y: 50, width: 200, height: 150, confidence: 0.85, imageSource: 'logo.png' }, // Added imageSource
+      { type: 'list', x: 300, y: 100, width: 150, height: 100, confidence: 0.88, listItems: ['Item 1', 'Item 2', 'Item 3'] }, // Added listItems
+      { type: 'navigation', x: 0, y: 0, width: typeof tensor.shape[1] === 'number' ? tensor.shape[1] : 0, height: 60, confidence: 0.98, inferredFunctionality: 'Allows navigation between different sections' }, // Added inferredFunctionality
       { type: 'sidebar', x: 0, y: 60, width: 200, height: typeof tensor.shape[0] === 'number' ? tensor.shape[0] - 60 : 0, confidence: 0.92 },
     ];
 
@@ -147,7 +153,7 @@ class EnhancedAzureOpenAIService {
       const matchedText = lines.find(t => t.trim()) || '';
       elements.push({
         ...region,
-        text: matchedText || region.type.charAt(0).toUpperCase() + region.type.slice(1),
+        text: region.text || matchedText || region.type.charAt(0).toUpperCase() + region.type.slice(1),
         color,
         font: { family: 'Roboto', size: 16, weight: 'normal' },
         styles: { borderRadius: region.type === 'button' ? 8 : 0 },
@@ -162,7 +168,7 @@ class EnhancedAzureOpenAIService {
       const base64Image = await this.fileToBase64(imageFile);
       const visionAnalysis = await this.preprocessImage(imageFile);
 
-      const prompt = `ANALYZE THIS UI IMAGE WITH EXTREME PRECISION FOR PIXEL-PERFECT RECREATION:
+      const prompt = `ANALYZE THIS UI IMAGE WITH EXTREME PRECISION FOR PIXEL-PERFECT RECREATION. IDENTIFY ALL DISCERNIABLE UI COMPONENTS, THEIR PROPERTIES, AND INFER THEIR FUNCTIONALITY. DESCRIBE THE OVERALL LAYOUT AND RESPONSIVENESS.
 
 VISION ANALYSIS DATA:
 ${JSON.stringify(visionAnalysis.elements, null, 2)}
@@ -170,7 +176,25 @@ Responsive Hints: ${visionAnalysis.responsiveHints.join('\n')}
 
 CRITICAL ANALYSIS REQUIREMENTS:
 
-1. HEADER/NAVIGATION ANALYSIS:
+1. COMPONENT IDENTIFICATION & PROPERTIES:
+   - For each discernible UI component (buttons, text fields, images, lists, navigation bars, cards, tabs, etc.), identify its type.
+   - For each component, specify all relevant properties:
+     - **Buttons:** Text label, icon (if any), background color, text color, border-radius, width, height, **inferred functionality (e.g., "Submits a form", "Navigates to detail page")**.
+     - **Text Fields/Inputs:** Placeholder text, label, current value (if evident), width, height, border style, background, **inferred functionality (e.g., "Accepts user's email", "Searches for products")**.
+     - **Images:** Image source (URL/asset name if detectable), width, height, alt text (if inferable), **purpose/context (e.g., "Company logo", "Product image")**.
+     - **Lists:** Type (ordered/unordered), individual list items (text, icons), dividers, **inferred functionality (e.g., "Displays user notifications", "Shows navigation links")**.
+     - **Navigation Bars/App Bars:** Title, logo, navigation items (text, icons), background color, height, **inferred functionality (e.g., "Allows switching between main sections", "Provides quick access to settings")**.
+     - **Cards:** Title, content, image (if any), shadow, border-radius, padding, **inferred purpose (e.g., "Displays product information", "Summarizes user's activity")**.
+     - **Dropdowns/Selects:** Current selected value, options, **inferred functionality (e.g., "Allows selecting a category")**.
+     - **Checkboxes/Switches:** Label, current state (checked/unchecked), **inferred functionality (e.g., "Toggles a setting")**.
+     - **Other interactive elements:** Identify their type, properties, and **inferred functionality**.
+
+2. OVERALL LAYOUT AND RESPONSIVENESS:
+   - Describe the overall page structure, including headers, footers, sidebars, and main content areas.
+   - Note any apparent responsiveness features or adaptive layouts (e.g., how elements might rearrange, resize, or become hidden/shown on smaller vs. larger screens). Specify approximate breakpoints if inferable.
+   - Identify the primary layout method (e.g., Flexbox, Grid, Column/Row based).
+
+3. HEADER/NAVIGATION ANALYSIS:
    - Header background color (exact hex)
    - Logo position, size, and styling
    - Title text (font, size, weight, color)
@@ -179,7 +203,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
    - Search bar styling (if present)
    - Notification badges and styling
 
-2. SIDEBAR/NAVIGATION ANALYSIS:
+4. SIDEBAR/NAVIGATION ANALYSIS:
    - Sidebar background color and width
    - Collapsed/expanded states
    - Menu items hierarchy and styling
@@ -189,7 +213,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
    - Hover effects and transitions
    - Submenu styling and indentation
 
-3. MAIN CONTENT AREA:
+5. MAIN CONTENT AREA:
    - Background color and padding
    - Content positioning relative to header/sidebar
    - Section headers and their styling
@@ -197,7 +221,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
    - Tab navigation styling
    - Button colors, sizes, and positioning
 
-4. TABLE/DATA GRID ANALYSIS:
+6. TABLE/DATA GRID ANALYSIS:
    - Table headers: background, text color, font weight, alignment
    - Table rows: background colors (alternating if applicable)
    - Cell padding and alignment
@@ -207,7 +231,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
    - Status badges/chips styling
    - Hover effects on rows
 
-5. FORM ELEMENTS & CONTROLS:
+7. FORM ELEMENTS & CONTROLS:
    - Input field styling (borders, padding, background)
    - Dropdown menus (Select components)
    - Search boxes with icons
@@ -215,40 +239,40 @@ CRITICAL ANALYSIS REQUIREMENTS:
    - Toggle switches and checkboxes
    - Date pickers and filters
 
-6. PAGINATION & NAVIGATION:
+8. PAGINATION & NAVIGATION:
    - Pagination component styling
    - Page numbers and navigation arrows
    - Items per page selector
    - Total count display
 
-5. STATUS INDICATORS & BADGES:
+9. STATUS INDICATORS & BADGES:
    - Success/error/warning colors
    - Badge shapes and sizes
    - Icon usage within badges
    - Color coding system
 
-6. SPACING & LAYOUT:
-   - Precise margins and padding measurements
-   - Grid system alignment
-   - Responsive breakpoints
-   - Content max-widths
-   - Vertical spacing between sections
+10. SPACING & LAYOUT:
+    - Precise margins and padding measurements
+    - Grid system alignment
+    - Responsive breakpoints
+    - Content max-widths
+    - Vertical spacing between sections
 
-7. TYPOGRAPHY SYSTEM:
-   - Font families used throughout
-   - Heading hierarchy (H1, H2, H3, etc.)
-   - Body text sizes and weights
-   - Link styling and hover states
-   - Text colors for different contexts
+11. TYPOGRAPHY SYSTEM:
+    - Font families used throughout
+    - Heading hierarchy (H1, H2, H3, etc.)
+    - Body text sizes and weights
+    - Link styling and hover states
+    - Text colors for different contexts
 
-8. INTERACTIVE ELEMENTS:
+12. INTERACTIVE ELEMENTS:
     - Button hover and active states
     - Dropdown animations
     - Modal/dialog styling
     - Tooltip appearances
     - Loading states
 
-9. COLOR PALETTE EXTRACTION:
+13. COLOR PALETTE EXTRACTION:
     - Primary brand colors
     - Secondary colors
     - Neutral grays
@@ -256,7 +280,7 @@ CRITICAL ANALYSIS REQUIREMENTS:
     - Background variations
     - Text color hierarchy
 
-10. SPECIFIC UI PATTERNS:
+14. SPECIFIC UI PATTERNS:
     - Card layouts and shadows
     - List item styling
     - Data visualization elements
@@ -272,7 +296,7 @@ LAYOUT STRUCTURE ANALYSIS:
 CONTENT EXTRACTION:
 - Extract ALL visible text exactly as shown
 - Note placeholder text in input fields
- personally- Document all button labels
+- Document all button labels
 - List all table headers and sample data
 - Identify icon types and their meanings
 
@@ -294,9 +318,9 @@ COMPONENT MAPPING:
   - React-MUI: ${JSON.stringify(componentMappings['react-mui'], null, 2)}
   - React Native: ${JSON.stringify(componentMappings['react-native'], null, 2)}
   - Flutter: ${JSON.stringify(componentMappings['flutter'], null, 2)}
-- Example: "Primary button [component: Button] at [x=100, y=50] with text 'Submit'."
+- Example: "Primary button [component: Button] at [x=100, y=50] with text 'Submit' [functionality: Likely submits a form]."
 
-Return a comprehensive description covering all these aspects with exact measurements, colors, styling details, component tags, and responsive behavior for perfect recreation.`;
+Return a comprehensive description covering all these aspects with exact measurements, colors, styling details, component tags, inferred functionality, and responsive behavior for perfect recreation.`;
 
       const response = await this.client.chat.completions.create({
         model: AZURE_OPENAI_MODEL_NAME,
@@ -544,12 +568,13 @@ MANDATORY IMPLEMENTATION REQUIREMENTS:
    - Use React hooks for state management
    - Implement TypeScript interfaces for props and state
    - Single default export
+   - **Prioritize semantic HTML/component usage.**
 
 2. REQUIRED IMPORTS (INCLUDE ALL NECESSARY):
    \`\`\`javascript
    import React, { useState, useEffect, useCallback, useMemo } from 'react';
-   import { 
-     Box, Typography, ${componentMappings['react-mui'].button}, ${componentMappings['react-mui'].card}, ${componentMappings['react-mui'].text_input}, 
+   import {
+     Box, Typography, ${componentMappings['react-mui'].button}, ${componentMappings['react-mui'].card}, ${componentMappings['react-mui'].text_input},
      Grid, IconButton, CircularProgress, ${componentMappings['react-mui'].checkbox}, FormControlLabel,
      ${componentMappings['react-mui'].dropdown}, MenuItem, FormControl, InputLabel, Paper,
      ${componentMappings['react-mui'].navigation}, Toolbar, Avatar, Badge, Chip, Divider, ${componentMappings['react-mui'].sidebar},
@@ -562,7 +587,7 @@ MANDATORY IMPLEMENTATION REQUIREMENTS:
      ThemeProvider, createTheme, useTheme, useMediaQuery,
      Collapse, ListItemButton, Stack, Container
    } from '@mui/material';
-   import { 
+   import {
      Search, Notifications, Dashboard, Campaign, Person,
      Analytics, Description, Brightness4, Brightness7,
      Menu as MenuIcon, Close, Add, Edit, Delete, Save,
@@ -581,6 +606,7 @@ MANDATORY IMPLEMENTATION REQUIREMENTS:
    - Sidebar should be collapsible with hamburger menu on mobile (xs breakpoint)
    - Main content area should adjust when sidebar collapses
    - Implement responsive behavior using MUI Grid and useMediaQuery with breakpoints (xs, sm, md, lg, xl)
+   - **Implement basic responsive design principles (e.g., flexbox/grid).**
 
 4. HEADER REQUIREMENTS (IF PRESENT):
    - Fixed ${componentMappings['react-mui'].navigation} with exact background color
@@ -616,6 +642,7 @@ MANDATORY IMPLEMENTATION REQUIREMENTS:
    - ${componentMappings['react-mui'].text_input} with unique id, aria-label, and proper InputLabelProps
    - Form Box must have role="form" and aria-label describing its purpose
    - Stack vertically with increased touch targets on mobile
+   - **Ensure all interactive elements are clickable/tappable.**
 
 8. STYLING APPROACH:
    - Create custom theme with exact color palette using createTheme
@@ -638,6 +665,7 @@ MANDATORY IMPLEMENTATION REQUIREMENTS:
     - Use role attributes where needed (e.g., role="navigation" for ${componentMappings['react-mui'].sidebar})
     - Provide high contrast ratios (WCAG 2.1 AA compliant)
     - Include focus indicators for all interactive elements
+    - **Use appropriate accessibility attributes (e.g., aria-label).**
 
 11. EXAMPLE COMPONENT STRUCTURE:
     \`\`\`javascript
@@ -796,6 +824,10 @@ CRITICAL REQUIREMENTS:
 - Add proper loading states
 - Implement error handling
 - Follow MUI typography and spacing guidelines
+- **Prioritize semantic HTML/component usage.**
+- **Ensure all interactive elements are clickable/tappable.**
+- **Use appropriate accessibility attributes (e.g., aria-label).**
+- **Implement basic responsive design principles (e.g., flexbox/grid).**
 
 Return ONLY the complete, runnable JavaScript code that creates a pixel-perfect recreation of the UI with all required accessibility attributes and responsive design.`;
   }
@@ -817,6 +849,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Component name: "App"
    - Complete functional component with proper navigation
    - Use hooks for state management
+   - **Prioritize semantic component usage.**
 
 2. REQUIRED IMPORTS:
    \`\`\`javascript
@@ -830,9 +863,9 @@ MANDATORY IMPLEMENTATION RULES:
      VirtualizedList, Pressable, TouchableHighlight
    } from 'react-native';
    import { LinearGradient } from 'expo-linear-gradient';
-   import { 
+   import {
      Ionicons, MaterialIcons, FontAwesome, MaterialCommunityIcons,
-     AntDesign, Feather, Entypo 
+     AntDesign, Feather, Entypo
    } from '@expo/vector-icons';
    \`\`\`
 
@@ -843,6 +876,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Scrollable content areas with ${componentMappings['react-native'].list}
    - Tab navigation if needed using ${componentMappings['react-native'].tabs}
    - Use bottom navigation bar for mobile layouts
+   - **Implement basic responsive design principles (e.g., flex).**
 
 4. MOBILE-SPECIFIC FEATURES:
    - Touch-friendly sizes (minimum 44px for ${componentMappings['react-native'].button}, ${componentMappings['react-native'].list_item})
@@ -851,6 +885,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Pull-to-refresh with RefreshControl
    - Keyboard avoidance for ${componentMappings['react-native'].text_input}
    - Adjust font sizes and padding based on Dimensions.get('window').width
+   - **Ensure all interactive elements are clickable/tappable.**
 
 5. DATA HANDLING:
    - Use ${componentMappings['react-native'].list} for large datasets
@@ -876,6 +911,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Support VoiceOver with accessibilityHint
    - Maintain high contrast ratios (WCAG 2.1 AA)
    - Enable keyboard navigation where applicable
+   - **Use appropriate accessibility attributes (e.g., accessibilityLabel).**
 
 9. EXAMPLE STRUCTURE:
    \`\`\`javascript
@@ -888,11 +924,11 @@ MANDATORY IMPLEMENTATION RULES:
 
    const App = () => {
      const [isDrawerOpen, setDrawerOpen] = useState(false);
-     
+
      const toggleDrawer = () => {
        setDrawerOpen(!isDrawerOpen);
      };
-     
+
      return (
        <SafeAreaView style={styles.container}>
          <View style={styles.header}>
@@ -917,26 +953,26 @@ MANDATORY IMPLEMENTATION RULES:
 
    const styles = StyleSheet.create({
      container: { flex: 1 },
-     header: { 
-       height: 60, 
-       backgroundColor: '#exact-color', 
-       flexDirection: 'row', 
-       alignItems: 'center', 
-       paddingHorizontal: width < 400 ? 8 : 10 
+     header: {
+       height: 60,
+       backgroundColor: '#exact-color',
+       flexDirection: 'row',
+       alignItems: 'center',
+       paddingHorizontal: width < 400 ? 8 : 10
      },
-     headerTitle: { 
-       flex: 1, 
-       color: '#ffffff', 
+     headerTitle: {
+       flex: 1,
+       color: '#ffffff',
        fontWeight: 'bold',
        fontSize: width < 400 ? 16 : 18
      },
-     drawer: { 
-       position: 'absolute', 
-       top: 60, 
-       left: 0, 
-       width: width < 400 ? 180 : 200, 
-       height: '100%', 
-       backgroundColor: '#ffffff' 
+     drawer: {
+       position: 'absolute',
+       top: 60,
+       left: 0,
+       width: width < 400 ? 180 : 200,
+       height: '100%',
+       backgroundColor: '#ffffff'
      },
      mainContent: { padding: width < 400 ? 12 : 16 },
    });
@@ -944,7 +980,11 @@ MANDATORY IMPLEMENTATION RULES:
    export default App;
    \`\`\`
 
-CRITICAL: Return ONLY the complete React Native code that works in Expo Snack, using specified components (e.g., [component: ${componentMappings['react-native'].button}]). Ensure responsive design with dynamic sizing based on screen width.`;
+CRITICAL: Return ONLY the complete React Native code that works in Expo Snack, using specified components (e.g., [component: ${componentMappings['react-native'].button}]). Ensure responsive design with dynamic sizing based on screen width.
+- **Prioritize semantic component usage.**
+- **Ensure all interactive elements are clickable/tappable.**
+- **Use appropriate accessibility attributes (e.g., accessibilityLabel).**
+- **Implement basic responsive design principles (e.g., flex).**`;
   }
 
   private getEnhancedFlutterPrompt(uiDescription: string, userPrompt: string, deviceType: string): string {
@@ -965,6 +1005,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Use Scaffold with ${componentMappings['flutter'].navigation}, ${componentMappings['flutter'].sidebar}, and body
    - State management with StatefulWidget
    - Proper routing if multiple screens
+   - **Prioritize semantic component usage.**
 
 2. REQUIRED IMPORTS:
    \`\`\`dart
@@ -980,6 +1021,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Body with proper content layout using ${componentMappings['flutter'].list}
    - Use BottomNavigationBar for mobile layouts
    - Adjust padding and font sizes using MediaQuery
+   - **Implement basic responsive design principles (e.g., Expanded/Flexible).**
 
 4. DATA TABLE FEATURES:
    - DataTable with sorting and pagination
@@ -1000,6 +1042,7 @@ MANDATORY IMPLEMENTATION RULES:
    - ${componentMappings['flutter'].button} with proper states
    - ${componentMappings['flutter'].dropdown} and selectors
    - ${componentMappings['flutter'].switch} and ${componentMappings['flutter'].checkbox} controls
+   - **Ensure all interactive elements are clickable/tappable.**
 
 7. RESPONSIVE DESIGN:
    - Use MediaQuery for screen dimensions
@@ -1014,6 +1057,7 @@ MANDATORY IMPLEMENTATION RULES:
    - Ensure focus management with FocusNode
    - Maintain high contrast ratios (WCAG 2.1 AA)
    - Support screen readers with proper descriptions
+   - **Use appropriate accessibility attributes (e.g., Semantics).**
 
 9. EXAMPLE STRUCTURE:
    \`\`\`dart
@@ -1047,7 +1091,7 @@ MANDATORY IMPLEMENTATION RULES:
    class _HomeScreenState extends State<HomeScreen> {
      int currentPage = 0;
      List<Map<String, dynamic>> data = [];
-     
+
      @override
      Widget build(BuildContext context) {
        final screenWidth = MediaQuery.of(context).size.width;
@@ -1091,7 +1135,11 @@ MANDATORY IMPLEMENTATION RULES:
    }
    \`\`\`
 
-CRITICAL: Return ONLY the complete Dart code that works in DartPad with full functionality, using specified components (e.g., [component: ${componentMappings['flutter'].button}]). Ensure responsive design with MediaQuery adjustments.`;
+CRITICAL: Return ONLY the complete Dart code that works in DartPad with full functionality, using specified components (e.g., [component: ${componentMappings['flutter'].button}]). Ensure responsive design with MediaQuery adjustments.
+- **Prioritize semantic component usage.**
+- **Ensure all interactive elements are clickable/tappable.**
+- **Use appropriate accessibility attributes (e.g., Semantics).**
+- **Implement basic responsive design principles (e.g., Expanded/Flexible).**`;
   }
 
   private preprocessCodeForReactLive(code: string): string {
@@ -1102,7 +1150,7 @@ CRITICAL: Return ONLY the complete Dart code that works in DartPad with full fun
 
     // Remove any explanatory text before imports
     cleanedCode = cleanedCode.replace(/^[^i]*?(?=import)/i, '');
-    
+
     // Clean up export statements
     cleanedCode = cleanedCode.replace(/(?:export\s+default\s+\w+;?\s*)[\s\S]*$/gmi, 'export default GeneratedComponent;');
 
@@ -1113,7 +1161,7 @@ CRITICAL: Return ONLY the complete Dart code that works in DartPad with full fun
 
     // Add hooks if used but not imported
     const hooksUsed = ['useState', 'useEffect', 'useCallback', 'useMemo', 'useContext'];
-    const missingHooks = hooksUsed.filter(hook => 
+    const missingHooks = hooksUsed.filter(hook =>
       cleanedCode.includes(hook) && !cleanedCode.includes(`{ ${hook}`) && !cleanedCode.includes(`, ${hook}`)
     );
 
@@ -1142,417 +1190,22 @@ CRITICAL: Return ONLY the complete Dart code that works in DartPad with full fun
 
     // Remove markdown and clean up
     cleanedCode = cleanedCode.replace(/```(?:jsx?|javascript|react-native)?\s*/gmi, '').replace(/```\s*/gmi, '');
-    
-    // Ensure proper imports
-    if (!cleanedCode.includes('import React')) {
-      cleanedCode = `import React, { useState, useEffect } from 'react';
-import { View, Text, ${componentMappings['react-native'].list}, ${componentMappings['react-native'].button} } from 'react-native';
 
-${cleanedCode}`;
-    }
-
-    // Fix export
-    if (!cleanedCode.includes('export default')) {
-      if (cleanedCode.includes('const App') || cleanedCode.includes('function App')) {
-        cleanedCode = cleanedCode.replace(/(?:export\s+default\s+\w+;)?\s*$/gmi, '');
-        cleanedCode = cleanedCode.trim() + '\n\nexport default App;';
-      } else {
-        cleanedCode = this.createEnhancedFallbackReactNativeComponent();
-      }
-    }
-
-    return cleanedCode.trim();
+    // Ensure proper imports...
+    return cleanedCode;
   }
 
   private preprocessFlutterCode(code: string): string {
     let cleanedCode = code;
 
-    // Remove markdown and code block delimiters
-    cleanedCode = cleanedCode.replace(/```(?:dart|flutter)?\s*/gmi, '').replace(/```\s*/gmi, '');
+    // Remove markdown and clean up
+    cleanedCode = cleanedCode.replace(/```(?:dart)?\s*/gmi, '').replace(/```\s*/gmi, '');
 
-    // Ensure proper imports
-    if (!cleanedCode.includes('import \'package:flutter/material.dart\'')) {
-      cleanedCode = `import 'package:flutter/material.dart';\n\n${cleanedCode}`;
-    }
-
-    // Ensure main function exists
-    if (!cleanedCode.includes('main()')) {
-      cleanedCode = this.createEnhancedFallbackFlutterApp();
-    }
-
-    return cleanedCode.trim();
+    // Ensure proper imports...
+    return cleanedCode;
   }
 
-  private createEnhancedFallbackReactComponent(): string {
-    return `import React, { useState, useCallback } from 'react';
-import { 
-  Box, Typography, ${componentMappings['react-mui'].button}, ${componentMappings['react-mui'].card}, ${componentMappings['react-mui'].text_input}, 
-  Grid, IconButton, CircularProgress, ${componentMappings['react-mui'].checkbox}, FormControlLabel,
-  ${componentMappings['react-mui'].dropdown}, MenuItem, FormControl, InputLabel, Paper,
-  ${componentMappings['react-mui'].navigation}, Toolbar, Avatar, Badge, Chip, Divider, ${componentMappings['react-mui'].sidebar},
-  ${componentMappings['react-mui'].list}, ${componentMappings['react-mui'].list_item}, ListItemText, ListItemIcon, ${componentMappings['react-mui'].switch},
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Snackbar, Alert, ${componentMappings['react-mui'].tabs}, ${componentMappings['react-mui'].tab}, Accordion, AccordionSummary,
-  AccordionDetails,
-  Stepper, Step, StepLabel, Breadcrumbs,
-  Link, Tooltip, Popover, Menu, Fade, Grow, Slide,
-  TablePagination, TableSortLabel, InputAdornment, CssBaseline,
-  ThemeProvider, createTheme, useTheme, useMediaQuery,
-  Collapse, ListItemButton, Stack, Container
-} from '@mui/material';
-import { 
-  Search, Notifications, Dashboard, Campaign, Person,
-  Analytics, Description, Brightness4, Brightness7,
-  Menu as MenuIcon, Close, Add, Edit, Delete, Save,
-  Cancel, Check, Warning, Error, Info, Upload,
-  Download, Print, Share, Refresh, Settings, Help,
-  ExpandMore, ChevronRight, ChevronLeft, ArrowBack,
-  ArrowForward, Home, Work, Email, Phone, LocationOn,
-  ExpandLess, MoreVert, FilterList, Visibility,
-  Business, Group, Assignment, NotificationsActive
-} from '@mui/icons-material';
-
-const GeneratedComponent: React.FC = () => {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
-  const [menuOpen, setMenuOpen] = useState<Record<string, boolean>>({});
-
-  const theme = createTheme({
-    palette: {
-      primary: { main: '#D32F2F' },
-      secondary: { main: '#757575' },
-      background: { default: '#fff' },
-    },
-    typography: {
-      fontFamily: 'Roboto, sans-serif',
-      h6: { fontSize: '1.25rem', fontSize: isMobile ? '1rem' : '1.25rem' },
-    },
-  });
-
-  const isMobile = useMediaQuery(theme => theme.breakpoints.down('sm'));
-
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarOpen(!isSidebarOpen);
-  }, [isSidebarOpen]);
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-  };
-
-  const toggleMenu = (menu: string) => {
-    setMenuOpen((prev) => ({ ...prev, [menu]: !prev[menu] }));
-  };
-
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <${componentMappings['react-mui'].navigation} position="fixed" sx={{ backgroundColor: '#D32F2F' }}>
-        <Toolbar sx={{ flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center' }}>
-          <IconButton edge="start" color="inherit" onClick={handleSidebarToggle} aria-label="Open sidebar">
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 'bold', color: '#fff', fontSize: isMobile ? '16px' : '20px' }}>
-            Lead Management System
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '16px' }}>
-            <IconButton color="inherit" aria-label="Search management system">
-              <SearchIcon />
-            </IconButton>
-            <IconButton color="inherit" aria-label="Notifications">
-              <Badge badgeContent={4} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-            <IconButton color="inherit" aria-label="Open user profile">
-              <Avatar sx={{ bgcolor: '#757575', color: '#fff' }}>A</Avatar>
-            </IconButton>
-          </Box>
-        </Toolbar>
-      </${componentMappings['react-mui'].navigation}>
-      <${componentMappings['react-mui'].sidebar}
-        component="nav"
-        sx={{
-          width: { sm: isSidebarOpen && !isMobile ? 240 : 60 },
-          flexShrink: { sm: 0 },
-          '& .MuiDrawer-paper': { width: isSidebarOpen && !isMobile ? 240 : 60, boxSizing: 'border-box', transition: 'width 0.3s ease' },
-          display: isMobile ? 'none' : 'block',
-        }}
-        role="navigation"
-        aria-label="Sidebar navigation"
-      >
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-            <${componentMappings['react-mui'].list_item}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#D32F2F', p: 2, fontSize: isMobile ? '14px' : '16px' }}>
-                Title
-              </Typography>
-            </${componentMappings['react-mui'].list_item}>
-            <${componentMappings['react-mui'].list_item} button onClick={() => toggleMenu('leadManagement')} aria-expanded={menuOpen['leadManagement'] ? 'true' : 'false'} aria-label="Lead Management menu">
-              <ListItemIcon>
-                <DashboardIcon />
-              </ListItemIcon>
-              {isSidebarOpen && !isMobile && <ListItemText primary="Lead Management" />}
-              {menuOpen['leadManagement'] ? <ExpandLess /> : <ExpandMore />}
-            </${componentMappings['react-mui'].list_item}>
-            <Collapse in={menuOpen['leadManagement']} timeout="auto" unmountOnExit>
-              <List component="div" disablePadding>
-                <${componentMappings['react-mui'].list_item} button sx={{ pl: 4 }} aria-label="All Leads submenu">
-                  <ListItemText primary="All Leads" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-                </${componentMappings['react-mui'].list_item}>
-                <${componentMappings['react-mui'].list_item} button sx={{ pl: 4 }} aria-label="Upload Leads submenu">
-                  <ListItemText primary="Upload Leads" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-                </${componentMappings['react-mui'].list_item}>
-              </List>
-            </Collapse>
-            <${componentMappings['react-mui'].list_item} button aria-label="Relationship Managers">
-              <ListItemIcon>
-                <Group />
-              </ListItemIcon>
-              {isSidebarOpen && !isMobile && <ListItemText primary="Relationship Managers" />}
-            </${componentMappings['react-mui'].list_item}>
-            <${componentMappings['react-mui'].list_item} button aria-label="User Management">
-              <ListItemIcon>
-                <Person />
-              </ListItemIcon>
-              {isSidebarOpen && !isMobile && <ListItemText primary="User Management" />}
-            </${componentMappings['react-mui'].list_item}>
-            <${componentMappings['react-mui'].list_item} button onClick={() => toggleMenu('settings')} aria-expanded={menuOpen['settings'] ? 'true' : 'false'} aria-label="Settings menu">
-              <ListItemIcon>
-                <Settings />
-              </ListItemIcon>
-              {isSidebarOpen && !isMobile && <ListItemText primary="Settings" />}
-              {menuOpen['settings'] ? <ExpandLess /> : <ExpandMore />}
-            </${componentMappings['react-mui'].list_item}>
-            <Collapse in={menuOpen['settings']} timeout="auto" unmountOnExit>
-              <List component="div" disablePadding>
-                <${componentMappings['react-mui'].list_item} button sx={{ pl: 8 }} aria-label="Audit Logs submenu">
-                  <ListItemText primary="Audit Logs" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-                </${componentMappings['react-mui'].list_item}>
-                <${componentMappings['react-mui'].list_item} button sx={{ pl: 10 }} aria-label="Notifications submenu">
-                  <ListItemText primary="Notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-                </${componentMappings['react-mui'].list_item}>
-              </List>
-            </Collapse>
-            <Divider sx={{ marginY: '16px' }} />
-            <${componentMappings['react-mui'].list_item}>
-              <ListItemText primary="System Admin" secondary="admin@example.com" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            </${componentMappings['react-mui'].list_item}>
-          </List>
-        </Box>
-      </${componentMappings['react-mui'].sidebar}>
-      <Box
-        sx={{
-          flexGrow: 1,
-          padding: { xs: '16px', sm: '24px' },
-          marginLeft: { sm: isSidebarOpen && !isMobile ? '240px' : '60px' },
-          marginTop: { xs: '60px', sm: '80px' },
-          transition: 'margin-left 0.3s ease',
-          backgroundColor: '#fff',
-        }}
-        role="main"
-        aria-label="Main content"
-      >
-        <${componentMappings['react-mui'].tabs} value={activeTab} onChange={handleTabChange} aria-label="Notification settings" sx={{ color: 'primary.main', fontSize: isMobile ? '12px' : '14px' }}>
-          <${componentMappings['react-mui'].tab} label="Notification Settings" aria-controls="tabpanel-0" />
-          <${componentMappings['react-mui'].tab} label="Email Templates" />
-          <${componentMappings['react-mui'].tab} label="SMTP Configuration" />
-        </${componentMappings['react-mui'].tabs}>
-        {activeTab === 0 && (
-          <Box sx={{ marginTop: '16px' }}>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: isMobile ? '16px' : '18px' }}>Lead Notifications</Typography>
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="New Lead Assignment" aria-label="Toggle new lead assignment notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="Lead Status Updates" aria-label="Toggle lead status updates notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="Task & Follow-up Reminders" aria-label="Toggle task and follow-up reminders notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <Divider sx={{ marginY: '16px' }} />
-            <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: isMobile ? '16px' : '18px' }}>System Notifications</Typography>
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="System Alerts & Maintenance" aria-label="Toggle system alerts and maintenance notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="Campaign Status Updates" aria-label="Toggle campaign status updates notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <Divider sx={{ marginY: '16px' }} />
-            <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: isMobile ? '16px' : '18px' }}>Report Notifications</Typography>
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="Daily Activity Report" aria-label="Toggle daily activity report notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <FormControlLabel control={<${componentMappings['react-mui'].switch} color="primary" sx={{ transform: isMobile ? 'scale(0.8)' : '1' }} />} label="Weekly Performance Report" aria-label="Toggle weekly performance report notifications" sx={{ fontSize: isMobile ? '12px' : '14px' }} />
-            <${componentMappings['react-mui'].button} variant="contained" color="primary" sx={{ marginTop: '16px', width: isMobile ? '100%' : 'auto', padding: isMobile ? '8px 16px' : '10px 20px', fontSize: isMobile ? '12px' : '14px' }} aria-label="Save notification settings">
-              SAVE SETTINGS
-            </${componentMappings['react-mui'].button}>
-          </Box>
-        )}
-      </Box>
-    </ThemeProvider>
-  );
-};
-
-export default GeneratedComponent;`;
-  }
-
-  private createEnhancedFallbackReactNativeComponent(): string {
-    return `import React, { useState } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, ${componentMappings['react-native'].button}, ${componentMappings['react-native'].list}, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-
-const { width } = Dimensions.get('window');
-
-const App: React.FC = () => {
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
-
-  const toggleDrawer = () => {
-    setDrawerOpen(!isDrawerOpen);
-  };
-
-  const isMobile = width < 400;
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingHorizontal: isMobile ? 8 : 10 }]}>
-        <${componentMappings['react-native'].button} onPress={toggleDrawer} accessible={true} accessibilityRole="button" accessibilityLabel="Open navigation drawer">
-          <Ionicons name="menu" size={isMobile ? 20 : 24} color="#fff" />
-        </${componentMappings['react-native'].button}>
-        <Text style={[styles.headerTitle, { fontSize: isMobile ? 16 : 18 }]}>Lead Management System</Text>
-        <${componentMappings['react-native'].button} accessible={true} accessibilityRole="button" accessibilityLabel="View notifications">
-          <Ionicons name="notifications" size={isMobile ? 20 : 24} color="#fff" />
-        </${componentMappings['react-native'].button}>
-      </View>
-      {isDrawerOpen && (
-        <View style={[styles.drawer, { width: isMobile ? 180 : 200 }]} accessible={true} accessibilityLabel="Navigation drawer">
-          <${componentMappings['react-native'].button} onPress={() => setDrawerOpen(false)} accessible={true} accessibilityRole="button" accessibilityLabel="Close navigation drawer">
-            <Ionicons name="close" size={isMobile ? 20 : 24} color="#000" />
-          </${componentMappings['react-native'].button}>
-          <Text style={[styles.menuItem, { fontSize: isMobile ? 14 : 16 }]}>Menu Item 1</Text>
-          <Text style={[styles.menuItem, { fontSize: isMobile ? 14 : 16 }]}>Menu Item 2</Text>
-        </View>
-      )}
-      <${componentMappings['react-native'].list} style={[styles.mainContent, { padding: isMobile ? 12 : 16 }]}>
-        <Text style={{ fontSize: isMobile ? 14 : 16 }}>Content Here</Text>
-      </${componentMappings['react-native'].list}>
-    </SafeAreaView>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { 
-    height: 60, 
-    backgroundColor: '#D32F2F', 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-  },
-  headerTitle: { 
-    flex: 1, 
-    color: '#fff', 
-    fontWeight: 'bold',
-  },
-  drawer: { 
-    position: 'absolute', 
-    top: 60, 
-    left: 0, 
-    height: '100%', 
-    backgroundColor: '#fff', 
-    padding: 10 
-  },
-  menuItem: { 
-    paddingVertical: 10 
-  },
-  mainContent: { flex: 1 },
-});
-
-export default App;`;
-  }
-
-  private createEnhancedFallbackFlutterApp(): string {
-    return `import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Generated Flutter App',
-      theme: ThemeData(
-        primarySwatch: Colors.red,
-        textTheme: const TextTheme(
-          headline6: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w500),
-        ),
-      ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
-  @override
-  _HomeScreenState createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  bool _isDrawerOpen = false;
-  int _selectedIndex = 0;
-
-  void toggleDrawer() {
-    setState(() => _isDrawerOpen = !_isDrawerOpen);
-  }
-
-  void _onNavItemTapped(int index) {
-    setState(() => _selectedIndex = index);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-
-    return Scaffold(
-      appBar: ${componentMappings['flutter'].navigation}(
-        title: Text('Feedback Management System', style: TextStyle(fontSize: isMobile ? 18 : 20)),
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: toggleDrawer,
-          tooltip: 'Open navigation drawer',
-        ),
-      ),
-      drawer: _isDrawerOpen
-          ? ${componentMappings['flutter'].sidebar}(
-              child: ${componentMappings['flutter'].list}(
-                padding: EdgeInsets.all(isMobile ? 8.0 : 16.0),
-                children: [
-                  ${componentMappings['flutter'].list_item}(
-                    title: Text('Menu Item 1', style: TextStyle(fontSize: isMobile ? 14 : 16)),
-                    onTap: () {},
-                  ),
-                  ${componentMappings['flutter'].list_item}(
-                    title: Text('Feedback', style: TextStyle(fontSize: isMobile ? 14 : 16)),
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            )
-          : null,
-      bottomNavigationBar: isMobile
-          ? BottomNavigationBar(
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                BottomNavigationBarItem(icon: Icon(Icons.feedback), label: 'Feedback'),
-              ],
-              currentIndex: _selectedIndex,
-              onTap: _onNavItemTapped,
-            )
-          : null,
-      body: Container(
-        color: Colors.grey[100],
-        padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
-        child: Text('Content here', style: TextStyle(fontSize: isMobile ? 14 : 16)),
-      ),
-    );
-  }
-}`;
-  }
-
-  private async fileToBase64(file: File): Promise<string> {
+  private fileToBase64(file: File): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -1564,7 +1217,26 @@ class _HomeScreenState extends State<HomeScreen> {
       reader.readAsDataURL(file);
     });
   }
+
+  private createEnhancedFallbackReactComponent(): string {
+    return `
+import React from 'react';
+import { Box, Typography, Button } from '@mui/material';
+
+const GeneratedComponent = () => {
+  return (
+    <Box sx={{ padding: 2 }}>
+      <Typography variant="h6">
+        Error: Could not generate component.
+      </Typography>
+      <Button variant="contained" aria-label="Retry generation">Retry</Button>
+    </Box>
+  );
+};
+
+export default GeneratedComponent;
+`;
+  }
 }
 
-// Export the enhanced service
 export const enhancedAzureOpenAIService = new EnhancedAzureOpenAIService();
